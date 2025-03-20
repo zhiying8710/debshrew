@@ -1,4 +1,4 @@
-# Debshrew
+# debshrew
 
 A framework for building deterministic CDC streams from Bitcoin metaprotocol state.
 
