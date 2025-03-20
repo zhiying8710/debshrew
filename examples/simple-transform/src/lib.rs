@@ -1,298 +1,110 @@
-//! Simple transform module for debshrew
-//!
-//! This is a simple example transform module that demonstrates how to use
-//! the debshrew framework to transform metaprotocol state into CDC streams.
-
-use debshrew_runtime::*;
+use debshrew_runtime::{self, DebTransform};
+use debshrew_runtime::{CdcMessage, CdcHeader, CdcOperation, CdcPayload};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
-/// Simple transform module
-#[derive(Debug, Default)]
+#[derive(Default, Clone, Debug)]
 pub struct SimpleTransform {
-    /// Transform state
-    state: TransformState,
+    // State fields
 }
 
-/// Token balance parameters
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct TokenBalanceParams {
-    /// Address to query
     address: String,
 }
 
-/// Token balance result
-#[derive(Debug, Serialize, Deserialize)]
-struct TokenBalanceResult {
-    /// Token balances
-    balances: HashMap<String, u64>,
-}
-
-/// Token transfer parameters
-#[derive(Debug, Serialize, Deserialize)]
-struct TokenTransferParams {
-    /// Block height
-    height: u32,
-}
-
-/// Token transfer
-#[derive(Debug, Serialize, Deserialize)]
-struct TokenTransfer {
-    /// Transaction ID
-    txid: String,
-    
-    /// From address
-    from: String,
-    
-    /// To address
-    to: String,
-    
-    /// Token symbol
-    token: String,
-    
-    /// Amount
-    amount: u64,
-}
-
-/// Token transfer result
-#[derive(Debug, Serialize, Deserialize)]
-struct TokenTransferResult {
-    /// Token transfers
-    transfers: Vec<TokenTransfer>,
+#[derive(Serialize, Deserialize)]
+struct TokenBalance {
+    balance: u64,
 }
 
 impl DebTransform for SimpleTransform {
-    fn process_block(&mut self) -> Result<Vec<CdcMessage>> {
-        // Get current block info
-        let height = get_height();
-        let hash = get_block_hash();
-        let hash_hex = hex::encode(&hash);
+    fn process_block(&mut self) -> debshrew_runtime::Result<()> {
+        let height = debshrew_runtime::get_height();
+        let hash = debshrew_runtime::get_block_hash();
         
-        log(&format!("Processing block {} ({})", height, hash_hex));
+        debshrew_runtime::println!("Processing block {} with hash {}", height, hex::encode(&hash));
         
-        // Query token transfers in this block
-        let params = serialize_params(&TokenTransferParams { height })?;
-        let result = call_view("get_token_transfers", &params)?;
-        let transfer_result: TokenTransferResult = deserialize_result(&result)?;
+        // Query metashrew views
+        let params = debshrew_runtime::serialize_params(&TokenBalanceParams { 
+            address: "bc1q...".to_string() 
+        })?;
         
-        let mut messages = Vec::new();
+        debshrew_runtime::println!("Querying token balance for bc1q...");
         
-        // Process each transfer
-        for transfer in &transfer_result.transfers {
-            // Update balances
-            self.update_balance(&mut messages, &transfer.from, &transfer.token, -(transfer.amount as i64), height, &hash_hex, &transfer.txid)?;
-            self.update_balance(&mut messages, &transfer.to, &transfer.token, transfer.amount as i64, height, &hash_hex, &transfer.txid)?;
+        let result = debshrew_runtime::view("get_token_balance".to_string(), params)?;
+        let balance: TokenBalance = debshrew_runtime::deserialize_result(&result)?;
+        
+        debshrew_runtime::println!("Current balance: {}", balance.balance);
+        
+        // Check if balance changed
+        let key = format!("balance:bc1q...").into_bytes();
+        if let Some(prev_data) = debshrew_runtime::get_state(&key) {
+            let prev_balance: TokenBalance = debshrew_runtime::deserialize_result(&prev_data)?;
             
-            // Generate transfer CDC message
-            let transfer_key = format!("{}:{}", transfer.txid, transfer.token);
+            debshrew_runtime::println!("Previous balance: {}", prev_balance.balance);
             
-            messages.push(CdcMessage {
+            if prev_balance.balance != balance.balance {
+                // Balance changed, generate update message
+                debshrew_runtime::println!("Balance changed, generating update message");
+                
+                let message = CdcMessage {
+                    header: CdcHeader {
+                        source: "token_protocol".to_string(),
+                        timestamp: chrono::Utc::now(),
+                        block_height: height,
+                        block_hash: hex::encode(&hash),
+                        transaction_id: None,
+                    },
+                    payload: CdcPayload {
+                        operation: CdcOperation::Update,
+                        table: "balances".to_string(),
+                        key: "bc1q...".to_string(),
+                        before: Some(serde_json::to_value(&prev_balance)?),
+                        after: Some(serde_json::to_value(&balance)?),
+                    },
+                };
+                
+                // Push CDC message
+                self.push_message(message)?;
+            } else {
+                debshrew_runtime::println!("Balance unchanged");
+            }
+        } else {
+            // New balance, generate create message
+            debshrew_runtime::println!("New balance, generating create message");
+            
+            let message = CdcMessage {
                 header: CdcHeader {
-                    source: "simple_transform".to_string(),
+                    source: "token_protocol".to_string(),
                     timestamp: chrono::Utc::now(),
                     block_height: height,
-                    block_hash: hash_hex.clone(),
-                    transaction_id: Some(transfer.txid.clone()),
+                    block_hash: hex::encode(&hash),
+                    transaction_id: None,
                 },
                 payload: CdcPayload {
                     operation: CdcOperation::Create,
-                    table: "token_transfers".to_string(),
-                    key: transfer_key,
+                    table: "balances".to_string(),
+                    key: "bc1q...".to_string(),
                     before: None,
-                    after: Some(serde_json::json!({
-                        "from": transfer.from,
-                        "to": transfer.to,
-                        "token": transfer.token,
-                        "amount": transfer.amount,
-                        "block_height": height,
-                        "txid": transfer.txid,
-                    })),
+                    after: Some(serde_json::to_value(&balance)?),
                 },
-            });
+            };
+            
+            // Push CDC message
+            self.push_message(message)?;
         }
         
-        log(&format!("Generated {} CDC messages", messages.len()));
+        // Update state
+        debshrew_runtime::set_state(&key, &debshrew_runtime::serialize_params(&balance)?);
         
-        Ok(messages)
-    }
-    
-    fn rollback(&mut self) -> Result<Vec<CdcMessage>> {
-        // Get current block info
-        let height = get_height();
-        let hash = get_block_hash();
-        let hash_hex = hex::encode(&hash);
-        
-        log(&format!("Rolling back to block {} ({})", height, hash_hex));
-        
-        // Get all keys with the "balance:" prefix and collect them into a vector
-        let balance_keys: Vec<Vec<u8>> = self.state.keys_with_prefix(b"balance:").cloned().collect();
-        let mut messages = Vec::new();
-        
-        // Generate inverse CDC messages for balances
-        for key in balance_keys {
-            if let Ok(key_str) = String::from_utf8(key.clone()) {
-                if key_str.starts_with("balance:") {
-                    let parts: Vec<&str> = key_str.splitn(3, ':').collect();
-                    if parts.len() == 3 {
-                        let address = parts[1];
-                        let token = parts[2];
-                        
-                        // Get the current balance
-                        if let Some(balance_data) = self.state.get(&key) {
-                            let balance: u64 = debshrew_support::deserialize(&balance_data)?;
-                            
-                            // Query the previous balance from metashrew
-                            let params = serialize_params(&TokenBalanceParams {
-                                address: address.to_string(),
-                            })?;
-                            
-                            let result = call_view("get_token_balances", &params)?;
-                            let balance_result: TokenBalanceResult = deserialize_result(&result)?;
-                            
-                            let previous_balance = balance_result.balances.get(token).cloned().unwrap_or(0);
-                            
-                            // Generate CDC message to revert to the previous balance
-                            messages.push(CdcMessage {
-                                header: CdcHeader {
-                                    source: "simple_transform".to_string(),
-                                    timestamp: chrono::Utc::now(),
-                                    block_height: height,
-                                    block_hash: hash_hex.clone(),
-                                    transaction_id: None,
-                                },
-                                payload: CdcPayload {
-                                    operation: CdcOperation::Update,
-                                    table: "token_balances".to_string(),
-                                    key: format!("{}:{}", address, token),
-                                    before: Some(serde_json::json!({
-                                        "address": address,
-                                        "token": token,
-                                        "balance": balance,
-                                    })),
-                                    after: Some(serde_json::json!({
-                                        "address": address,
-                                        "token": token,
-                                        "balance": previous_balance,
-                                    })),
-                                },
-                            });
-                            
-                            // Update the state
-                            self.state.set(key.clone(), debshrew_support::serialize(&previous_balance)?);
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Generate inverse CDC messages for transfers
-        // In a real implementation, we would query the transfers that need to be rolled back
-        // For simplicity, we'll just log a message
-        log(&format!("Generated {} CDC messages for rollback", messages.len()));
-        
-        Ok(messages)
-    }
-}
-
-impl SimpleTransform {
-    /// Update a token balance
-    ///
-    /// # Arguments
-    ///
-    /// * `messages` - The CDC messages to append to
-    /// * `address` - The address
-    /// * `token` - The token symbol
-    /// * `amount` - The amount to add (can be negative)
-    /// * `height` - The block height
-    /// * `hash` - The block hash
-    /// * `txid` - The transaction ID
-    ///
-    /// # Returns
-    ///
-    /// Ok(()) if the balance was updated successfully
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the balance cannot be updated
-    fn update_balance(
-        &mut self,
-        messages: &mut Vec<CdcMessage>,
-        address: &str,
-        token: &str,
-        amount: i64,
-        height: u32,
-        hash: &str,
-        txid: &str,
-    ) -> Result<()> {
-        // Get the current balance
-        let key = format!("balance:{}:{}", address, token).into_bytes();
-        let current_balance = if let Some(data) = self.state.get(&key) {
-            debshrew_support::deserialize::<u64>(&data)?
-        } else {
-            // If the balance doesn't exist, query it from metashrew
-            let params = serialize_params(&TokenBalanceParams {
-                address: address.to_string(),
-            })?;
-            
-            let result = call_view("get_token_balances", &params)?;
-            let balance_result: TokenBalanceResult = deserialize_result(&result)?;
-            
-            balance_result.balances.get(token).cloned().unwrap_or(0)
-        };
-        
-        // Calculate the new balance
-        let new_balance = if amount < 0 {
-            let abs_amount = amount.abs() as u64;
-            if current_balance < abs_amount {
-                return Err(Error::Transform(format!("Insufficient balance: {} < {}", current_balance, abs_amount)));
-            }
-            current_balance - abs_amount
-        } else {
-            current_balance + amount as u64
-        };
-        
-        // Generate CDC message
-        let balance_key = format!("{}:{}", address, token);
-        
-        messages.push(CdcMessage {
-            header: CdcHeader {
-                source: "simple_transform".to_string(),
-                timestamp: chrono::Utc::now(),
-                block_height: height,
-                block_hash: hash.to_string(),
-                transaction_id: Some(txid.to_string()),
-            },
-            payload: CdcPayload {
-                operation: if current_balance == 0 {
-                    CdcOperation::Create
-                } else {
-                    CdcOperation::Update
-                },
-                table: "token_balances".to_string(),
-                key: balance_key,
-                before: if current_balance == 0 {
-                    None
-                } else {
-                    Some(serde_json::json!({
-                        "address": address,
-                        "token": token,
-                        "balance": current_balance,
-                    }))
-                },
-                after: Some(serde_json::json!({
-                    "address": address,
-                    "token": token,
-                    "balance": new_balance,
-                })),
-            },
-        });
-        
-        // Update the state
-        self.state.set(key, debshrew_support::serialize(&new_balance)?);
+        debshrew_runtime::println!("Block processing complete");
         
         Ok(())
     }
+    
+    // We don't need to implement rollback() as the default implementation
+    // will use the automatically generated inverse operations
 }
 
-// Declare the transform module
-declare_transform!(SimpleTransform);
+// Register the transform
+debshrew_runtime::declare_transform!(SimpleTransform);

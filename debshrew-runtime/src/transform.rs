@@ -12,7 +12,7 @@ use std::fmt::Debug;
 ///
 /// This trait defines the interface for transform modules, which convert
 /// metaprotocol state into CDC streams.
-pub trait DebTransform: Default + Debug {
+pub trait DebTransform: Default + Debug + Clone {
     /// Process a block and generate CDC messages
     ///
     /// This method is called for each new block. It should query metashrew views
@@ -21,26 +21,33 @@ pub trait DebTransform: Default + Debug {
     ///
     /// # Returns
     ///
-    /// A vector of CDC messages generated for the block
+    /// Ok(()) if processing was successful
     ///
     /// # Errors
     ///
     /// Returns an error if processing fails
-    fn process_block(&mut self) -> Result<Vec<CdcMessage>>;
+    fn process_block(&mut self) -> Result<()>;
 
     /// Generate inverse CDC messages for rollback
     ///
     /// This method is called during chain reorganizations. It should generate
     /// inverse CDC messages that undo the changes from the rolled-back blocks.
     ///
+    /// The default implementation does nothing, as the runtime will automatically
+    /// generate inverse CDC messages based on the original messages.
+    ///
     /// # Returns
     ///
-    /// A vector of inverse CDC messages for rollback
+    /// Ok(()) if rollback was successful
     ///
     /// # Errors
     ///
     /// Returns an error if rollback fails
-    fn rollback(&mut self) -> Result<Vec<CdcMessage>>;
+    fn rollback(&mut self) -> Result<()> {
+        // Default implementation does nothing
+        // The runtime will automatically generate inverse CDC messages
+        Ok(())
+    }
 }
 
 /// Transform module result
@@ -75,50 +82,28 @@ impl TransformResult {
     }
 }
 
-/// Transform module factory
+/// Mock transform for testing
 ///
-/// This trait defines a factory for creating transform modules.
-pub trait TransformFactory {
-    /// The type of transform module created by this factory
-    type Transform: DebTransform;
-
-    /// Create a new transform module
-    ///
-    /// # Returns
-    ///
-    /// A new transform module
-    fn create(&self) -> Self::Transform;
+/// This struct implements the `DebTransform` trait for testing purposes.
+#[derive(Debug, Default, Clone)]
+pub struct MockTransform {
+    /// The transform state
+    pub state: TransformState,
+    
+    /// The CDC messages to return from process_block
+    pub process_block_messages: Vec<CdcMessage>,
+    
+    /// The CDC messages to return from rollback
+    pub rollback_messages: Vec<CdcMessage>,
 }
 
-/// Default transform factory
-///
-/// This struct implements the `TransformFactory` trait for a transform module
-/// that implements `Default`.
-#[derive(Debug, Clone, Copy)]
-pub struct DefaultTransformFactory<T: DebTransform>(std::marker::PhantomData<T>);
-
-impl<T: DebTransform> DefaultTransformFactory<T> {
-    /// Create a new default transform factory
-    ///
-    /// # Returns
-    ///
-    /// A new default transform factory
-    pub fn new() -> Self {
-        Self(std::marker::PhantomData)
+impl DebTransform for MockTransform {
+    fn process_block(&mut self) -> Result<()> {
+        Ok(())
     }
-}
-
-impl<T: DebTransform> Default for DefaultTransformFactory<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<T: DebTransform> TransformFactory for DefaultTransformFactory<T> {
-    type Transform = T;
-
-    fn create(&self) -> Self::Transform {
-        T::default()
+    
+    fn rollback(&mut self) -> Result<()> {
+        Ok(())
     }
 }
 
@@ -127,62 +112,6 @@ mod tests {
     use super::*;
     use debshrew_support::{CdcHeader, CdcOperation, CdcPayload};
     use chrono::Utc;
-
-    #[derive(Debug, Default)]
-    struct TestTransform {
-        #[allow(dead_code)]
-        state: TransformState,
-    }
-
-    impl DebTransform for TestTransform {
-        fn process_block(&mut self) -> Result<Vec<CdcMessage>> {
-            let message = CdcMessage {
-                header: CdcHeader {
-                    source: "test".to_string(),
-                    timestamp: Utc::now(),
-                    block_height: 123,
-                    block_hash: "000000000000000000024bead8df69990852c202db0e0097c1a12ea637d7e96d".to_string(),
-                    transaction_id: None,
-                },
-                payload: CdcPayload {
-                    operation: CdcOperation::Create,
-                    table: "test_table".to_string(),
-                    key: "test_key".to_string(),
-                    before: None,
-                    after: Some(serde_json::json!({
-                        "field1": "value1",
-                        "field2": 42
-                    })),
-                },
-            };
-
-            Ok(vec![message])
-        }
-
-        fn rollback(&mut self) -> Result<Vec<CdcMessage>> {
-            let message = CdcMessage {
-                header: CdcHeader {
-                    source: "test".to_string(),
-                    timestamp: Utc::now(),
-                    block_height: 122,
-                    block_hash: "000000000000000000024bead8df69990852c202db0e0097c1a12ea637d7e96d".to_string(),
-                    transaction_id: None,
-                },
-                payload: CdcPayload {
-                    operation: CdcOperation::Delete,
-                    table: "test_table".to_string(),
-                    key: "test_key".to_string(),
-                    before: Some(serde_json::json!({
-                        "field1": "value1",
-                        "field2": 42
-                    })),
-                    after: None,
-                },
-            };
-
-            Ok(vec![message])
-        }
-    }
 
     #[test]
     fn test_transform_result() {
@@ -211,15 +140,5 @@ mod tests {
 
         assert_eq!(result.cdc_messages.len(), 1);
         assert_eq!(result.cdc_messages[0].payload.table, "test_table");
-    }
-
-    #[test]
-    fn test_default_transform_factory() {
-        let factory = DefaultTransformFactory::<TestTransform>::new();
-        let mut transform = factory.create();
-
-        let messages = transform.process_block().unwrap();
-        assert_eq!(messages.len(), 1);
-        assert_eq!(messages[0].payload.table, "test_table");
     }
 }

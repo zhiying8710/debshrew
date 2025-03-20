@@ -69,6 +69,10 @@ pub enum Error {
     /// Generic error with a message
     #[error("{0}")]
     Generic(String),
+    
+    /// Anyhow error
+    #[error("Error: {0}")]
+    Anyhow(#[from] anyhow::Error),
 }
 
 impl From<&str> for Error {

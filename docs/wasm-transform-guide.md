@@ -46,12 +46,15 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-debshrew-runtime = { path = "../debshrew-runtime" }
+debshrew-runtime = { path = "../debshrew-runtime", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 hex = "0.4"
+getrandom = { version = "0.2", features = ["js"] }
 ```
+
+Note: The `default-features = false` is important to disable the host features that aren't compatible with the WASM target. The `getrandom` dependency with the `js` feature is required for UUID generation in WASM environments.
 
 ### Step 3: Implement the Transform Module
 
@@ -60,73 +63,49 @@ Create a basic transform module in `src/lib.rs`:
 ```rust
 use debshrew_runtime::*;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct MyTransform {
-    state: TransformState
+    // State fields
 }
 
 impl DebTransform for MyTransform {
-    fn process_block(&mut self) -> Result<Vec<CdcMessage>> {
+    fn process_block(&mut self) -> Result<()> {
         // Get current block info
         let height = get_height();
         let hash = get_block_hash();
         
         // Generate a simple CDC message
-        let messages = vec![
-            CdcMessage {
-                header: CdcHeader {
-                    source: "my_transform".to_string(),
-                    timestamp: chrono::Utc::now(),
-                    block_height: height,
-                    block_hash: hex::encode(&hash),
-                    transaction_id: None,
-                },
-                payload: CdcPayload {
-                    operation: CdcOperation::Create,
-                    table: "blocks".to_string(),
-                    key: height.to_string(),
-                    before: None,
-                    after: Some(serde_json::json!({
-                        "height": height,
-                        "hash": hex::encode(&hash),
-                        "timestamp": chrono::Utc::now()
-                    })),
-                },
-            }
-        ];
+        let message = CdcMessage {
+            header: CdcHeader {
+                source: "my_transform".to_string(),
+                timestamp: chrono::Utc::now(),
+                block_height: height,
+                block_hash: hex::encode(&hash),
+                transaction_id: None,
+            },
+            payload: CdcPayload {
+                operation: CdcOperation::Create,
+                table: "blocks".to_string(),
+                key: height.to_string(),
+                before: None,
+                after: Some(serde_json::json!({
+                    "height": height,
+                    "hash": hex::encode(&hash),
+                    "timestamp": chrono::Utc::now()
+                })),
+            },
+        };
         
-        Ok(messages)
+        // Push CDC message
+        self.push_message(message)?;
+        
+        Ok(())
     }
     
-    fn rollback(&mut self) -> Result<Vec<CdcMessage>> {
-        // Get current block info
-        let height = get_height();
-        
-        // Generate an inverse CDC message
-        let messages = vec![
-            CdcMessage {
-                header: CdcHeader {
-                    source: "my_transform".to_string(),
-                    timestamp: chrono::Utc::now(),
-                    block_height: height,
-                    block_hash: hex::encode(&get_block_hash()),
-                    transaction_id: None,
-                },
-                payload: CdcPayload {
-                    operation: CdcOperation::Delete,
-                    table: "blocks".to_string(),
-                    key: height.to_string(),
-                    before: Some(serde_json::json!({
-                        "height": height,
-                        "hash": hex::encode(&get_block_hash()),
-                        "timestamp": chrono::Utc::now()
-                    })),
-                    after: None,
-                },
-            }
-        ];
-        
-        Ok(messages)
+    fn rollback(&mut self) -> Result<()> {
+        // The default implementation does nothing
+        // The runtime will automatically generate inverse CDC messages
+        Ok(())
     }
 }
 
@@ -153,10 +132,10 @@ This method is called for each new block. It should:
 1. Get the current block information
 2. Query metashrew views
 3. Detect changes
-4. Generate CDC messages
+4. Generate and push CDC messages
 
 ```rust
-fn process_block(&mut self) -> Result<Vec<CdcMessage>> {
+fn process_block(&mut self) -> Result<()> {
     // Implementation
 }
 ```
@@ -169,10 +148,12 @@ This method is called during a reorg. It should:
 2. Generate inverse CDC messages
 
 ```rust
-fn rollback(&mut self) -> Result<Vec<CdcMessage>> {
+fn rollback(&mut self) -> Result<()> {
     // Implementation
 }
 ```
+
+The default implementation does nothing, as the runtime will automatically generate inverse CDC messages based on the original messages.
 
 ## Host Functions
 
@@ -185,25 +166,29 @@ Debshrew provides several host functions that transform modules can use:
 
 ### State Management
 
-- `get_state(key: &str)`: Get a value from the state
-- `set_state(key: &str, value: &str)`: Set a value in the state
-- `delete_state(key: &str)`: Delete a value from the state
-- `get_state_keys()`: Get all keys in the state
-- `get_state_keys_with_prefix(prefix: &str)`: Get all keys with a specific prefix
+- `get_state(key: &[u8])`: Get a value from the state
+- `set_state(key: &[u8], value: &[u8])`: Set a value in the state
+- `delete_state(key: &[u8])`: Delete a value from the state
 
 ### View Functions
 
-- `call_view(name: &str, params: &[u8])`: Call a metashrew view function
+- `view(name: String, params: Vec<u8>)`: Call a metashrew view function
 
 ### Serialization
 
-- `serialize(value: &T)`: Serialize a value to bytes
-- `deserialize(bytes: &[u8])`: Deserialize bytes to a value
-- `serialize_to_json(value: &T)`: Serialize a value to JSON
+- `serialize_params<T: Serialize>(params: &T)`: Serialize parameters for a view function
+- `deserialize_result<T: for<'de> Deserialize<'de>>(result: &[u8])`: Deserialize the result from a view function
+
+### CDC Message Handling
+
+- `push_cdc_message(message: &CdcMessage)`: Push a CDC message to the host
 
 ### Logging
 
-- `log(message: &str)`: Log a message
+- `write_stdout(msg: &str)`: Write to stdout
+- `write_stderr(msg: &str)`: Write to stderr
+- `println!()`: Macro for writing to stdout
+- `eprintln!()`: Macro for writing to stderr
 
 ## State Management
 
@@ -218,14 +203,16 @@ Example:
 
 ```rust
 // Get a value from the state
-let count_str = get_state("count").unwrap_or("0".to_string());
+let key = "count".as_bytes();
+let count_bytes = get_state(key).unwrap_or_else(|| "0".as_bytes().to_vec());
+let count_str = std::str::from_utf8(&count_bytes).unwrap_or("0");
 let mut count: u32 = count_str.parse().unwrap_or(0);
 
 // Update the value
 count += 1;
 
 // Store the updated value
-set_state("count", &count.to_string());
+set_state(key, count.to_string().as_bytes());
 ```
 
 ## Calling Metashrew Views
@@ -234,13 +221,13 @@ Transform modules can call metashrew views to get data:
 
 ```rust
 // Serialize the parameters
-let params = serialize(&height)?;
+let params = serialize_params(&height)?;
 
 // Call the view function
-let result = call_view("get_block_transactions", &params)?;
+let result = view("get_block_transactions".to_string(), params)?;
 
 // Deserialize the result
-let transactions: Vec<Transaction> = deserialize(&result)?;
+let transactions: Vec<Transaction> = deserialize_result(&result)?;
 ```
 
 ## Generating CDC Messages
@@ -264,26 +251,32 @@ let message = CdcMessage {
         after: Some(serde_json::to_value(tx)?),
     },
 };
+
+// Push the message
+self.push_message(message)?;
 ```
 
 ## Handling Rollbacks
 
-During a reorg, transform modules need to generate inverse CDC messages:
+During a reorg, transform modules need to generate inverse CDC messages. The default implementation does nothing, as the runtime will automatically generate inverse CDC messages based on the original messages.
+
+If you need custom rollback behavior, you can implement the `rollback` method:
 
 ```rust
-fn rollback(&mut self) -> Result<Vec<CdcMessage>> {
+fn rollback(&mut self) -> Result<()> {
+    // Get the current block height
+    let height = get_height();
+    
     // Get the records that were created in this block
-    let records = get_records_for_block(get_height())?;
+    let records = get_records_for_block(height)?;
     
     // Generate inverse CDC messages
-    let mut messages = Vec::new();
-    
     for record in records {
-        messages.push(CdcMessage {
+        let message = CdcMessage {
             header: CdcHeader {
                 source: "my_transform".to_string(),
                 timestamp: chrono::Utc::now(),
-                block_height: get_height(),
+                block_height: height,
                 block_hash: hex::encode(&get_block_hash()),
                 transaction_id: record.tx_id.clone(),
             },
@@ -294,10 +287,13 @@ fn rollback(&mut self) -> Result<Vec<CdcMessage>> {
                 before: Some(record.data.clone()),
                 after: None,
             },
-        });
+        };
+        
+        // Push the message
+        self.push_message(message)?;
     }
     
-    Ok(messages)
+    Ok(())
 }
 ```
 
@@ -308,17 +304,16 @@ fn rollback(&mut self) -> Result<Vec<CdcMessage>> {
 For better performance, batch CDC messages:
 
 ```rust
-let mut messages = Vec::new();
-
 for tx in transactions {
     // Process transaction
     // ...
     
-    // Add CDC message
-    messages.push(cdc_message);
+    // Create CDC message
+    let message = CdcMessage { /* ... */ };
+    
+    // Push CDC message
+    self.push_message(message)?;
 }
-
-Ok(messages)
 ```
 
 ### Incremental Processing
@@ -327,7 +322,9 @@ For large datasets, use incremental processing:
 
 ```rust
 // Get the last processed transaction index
-let last_index_str = get_state("last_tx_index").unwrap_or("0".to_string());
+let key = "last_tx_index".as_bytes();
+let last_index_bytes = get_state(key).unwrap_or_else(|| "0".as_bytes().to_vec());
+let last_index_str = std::str::from_utf8(&last_index_bytes).unwrap_or("0");
 let last_index: usize = last_index_str.parse().unwrap_or(0);
 
 // Process transactions starting from the last index
@@ -336,7 +333,7 @@ for (i, tx) in transactions.iter().enumerate().skip(last_index) {
     // ...
     
     // Update the last processed index
-    set_state("last_tx_index", &(i + 1).to_string());
+    set_state(key, (i + 1).to_string().as_bytes());
 }
 ```
 
@@ -345,80 +342,20 @@ for (i, tx) in transactions.iter().enumerate().skip(last_index) {
 Handle errors gracefully:
 
 ```rust
-fn process_block(&mut self) -> Result<Vec<CdcMessage>> {
+fn process_block(&mut self) -> Result<()> {
     // Try to call a view function
-    let result = match call_view("my_view", &[]) {
+    let result = match view("my_view".to_string(), vec![]) {
         Ok(result) => result,
         Err(e) => {
-            log(&format!("Error calling view: {:?}", e));
-            return Ok(vec![]); // Return empty vector instead of propagating the error
+            eprintln!("Error calling view: {:?}", e);
+            return Ok(()); // Return Ok instead of propagating the error
         }
     };
     
     // Continue processing
     // ...
-}
-```
-
-## Testing Transform Modules
-
-### Unit Testing
-
-You can unit test your transform module using the `MockTransform` struct:
-
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use debshrew_runtime::MockTransform;
     
-    #[test]
-    fn test_process_block() {
-        let mut transform = MockTransform::default();
-        
-        // Set up mock state
-        transform.state.set("count", "42");
-        
-        // Call process_block
-        let messages = transform.process_block().unwrap();
-        
-        // Verify the messages
-        assert_eq!(messages.len(), 1);
-        assert_eq!(messages[0].payload.table, "blocks");
-        assert_eq!(messages[0].payload.operation, CdcOperation::Create);
-    }
-}
-```
-
-### Integration Testing
-
-For integration testing, you can use Debshrew's test utilities:
-
-```rust
-use debshrew::test_utils::{TestMetashrewClient, TestSink};
-
-#[test]
-fn test_transform_integration() {
-    // Create a test metashrew client
-    let client = TestMetashrewClient::new();
-    
-    // Create a test sink
-    let sink = TestSink::new();
-    
-    // Create a WASM runtime with your transform module
-    let runtime = WasmRuntime::new("path/to/transform.wasm").unwrap();
-    
-    // Create a block synchronizer
-    let mut synchronizer = BlockSynchronizer::new(client, runtime, Box::new(sink.clone()), 6).unwrap();
-    
-    // Process a block
-    synchronizer.process_block(123).unwrap();
-    
-    // Verify the CDC messages
-    let messages = sink.get_messages();
-    assert_eq!(messages.len(), 1);
-    assert_eq!(messages[0].payload.table, "blocks");
-    assert_eq!(messages[0].payload.operation, CdcOperation::Create);
+    Ok(())
 }
 ```
 
@@ -426,7 +363,7 @@ fn test_transform_integration() {
 
 Debugging WASM modules can be challenging. Here are some tips:
 
-1. Use the `log` function to output debug information
+1. Use the `println!` and `eprintln!` macros to output debug information
 2. Check the Debshrew logs for errors
 3. Use the `console` sink to see CDC messages
 4. Add debug assertions in your code

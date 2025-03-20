@@ -221,21 +221,37 @@ impl<C: MetashrewClient> BlockSynchronizer<C> {
         // Release the cache lock
         drop(cache);
         
-        // Roll back the transform module to the common ancestor
+        // Get the runtime lock
         let mut runtime = self.runtime.lock().await;
+        
+        // Generate inverse CDC messages for the rolled back blocks
+        let mut inverse_messages = Vec::new();
+        
+        // Process blocks in reverse order from current_height down to common_ancestor + 1
+        for height in (common_ancestor + 1..=self.current_height).rev() {
+            info!("Generating inverse CDC messages for block {}", height);
+            
+            // Compute inverse messages for this block
+            let block_inverse = runtime.compute_inverse_messages(height)?;
+            inverse_messages.extend(block_inverse);
+        }
+        
+        // Reset the runtime state to the common ancestor
         runtime.set_current_height(common_ancestor);
         runtime.set_state(state_snapshot);
         
-        // Generate inverse CDC messages for the rolled back blocks
-        let hash = self.client.get_block_hash(common_ancestor).await?;
-        let rollback_result = runtime.rollback(common_ancestor, hash)?;
-        
         // Send the inverse CDC messages to the sink
-        self.sink.send(rollback_result.cdc_messages).await?;
+        if !inverse_messages.is_empty() {
+            info!("Sending {} inverse CDC messages to sink", inverse_messages.len());
+            self.sink.send(inverse_messages).await?;
+        }
         
         // Roll back the cache
         let mut cache = self.cache.lock().await;
         cache.rollback(common_ancestor)?;
+        
+        // Release the runtime lock
+        drop(runtime);
         
         // Process the new chain
         for height in (common_ancestor + 1)..=new_height {

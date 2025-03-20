@@ -43,6 +43,7 @@ Debshrew consists of the following components:
 
 - Rust 1.70 or later
 - A running metashrew instance
+- For WASM transform development: `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`)
 
 ### Building from Source
 
@@ -122,49 +123,45 @@ Here's a simple example:
 ```rust
 use debshrew_runtime::*;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct MyTransform {
-    state: TransformState
+    // State fields
 }
 
 impl DebTransform for MyTransform {
-    fn process_block(&mut self) -> Result<Vec<CdcMessage>> {
+    fn process_block(&mut self) -> Result<()> {
         // Get current block info
         let height = get_height();
         let hash = get_block_hash();
         
         // Query metashrew views
-        let result = call_view("my_view", &[])?;
+        let result = view("my_view".to_string(), vec![])?;
         
         // Generate CDC messages
-        let messages = vec![
-            CdcMessage {
-                header: CdcHeader {
-                    source: "my_transform".to_string(),
-                    timestamp: chrono::Utc::now(),
-                    block_height: height,
-                    block_hash: hex::encode(&hash),
-                    transaction_id: None,
-                },
-                payload: CdcPayload {
-                    operation: CdcOperation::Create,
-                    table: "my_table".to_string(),
-                    key: "my_key".to_string(),
-                    before: None,
-                    after: Some(serde_json::json!({
-                        "field1": "value1",
-                        "field2": 42
-                    })),
-                },
-            }
-        ];
+        let message = CdcMessage {
+            header: CdcHeader {
+                source: "my_transform".to_string(),
+                timestamp: chrono::Utc::now(),
+                block_height: height,
+                block_hash: hex::encode(&hash),
+                transaction_id: None,
+            },
+            payload: CdcPayload {
+                operation: CdcOperation::Create,
+                table: "my_table".to_string(),
+                key: "my_key".to_string(),
+                before: None,
+                after: Some(serde_json::json!({
+                    "field1": "value1",
+                    "field2": 42
+                })),
+            },
+        };
         
-        Ok(messages)
-    }
-    
-    fn rollback(&mut self) -> Result<Vec<CdcMessage>> {
-        // Generate inverse CDC messages for rollback
-        Ok(vec![])
+        // Push CDC message
+        self.push_message(message)?;
+        
+        Ok(())
     }
 }
 

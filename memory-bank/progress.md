@@ -1,224 +1,70 @@
-# Progress Tracking
+# Progress
 
 ## What Works
 
-### Core Components
-
-1. **Project Structure**
-   - ✅ Initial project structure with Cargo workspace
-   - ✅ Core crates: debshrew, debshrew-runtime, debshrew-support
-   - ✅ Build system configuration
-   - ✅ Documentation structure
-
-2. **WASM Runtime**
-   - ✅ Basic WASM module loading and execution
-   - ✅ Memory management for WASM modules
-   - ✅ Host function definitions
-   - ✅ Initial transform trait definition
-
-3. **Metashrew Integration**
-   - ✅ Basic metashrew client implementation
-   - ✅ View access interface
-   - ✅ Block retrieval mechanism
-   - ✅ Initial reorg detection
-
-4. **CDC Message Generation**
-   - ✅ CDC message structure definition
-   - ✅ Basic message generation utilities
-   - ✅ Serialization and deserialization
-   - ✅ Message validation
-
-## In Progress
-
-1. **Core Service**
-   - 🔄 Block synchronization mechanism
-   - 🔄 Block cache implementation
-   - 🔄 Reorg handling
-   - 🔄 Service lifecycle management
-   - 🔄 Configuration system
-
-2. **Runtime Library**
-   - 🔄 State management system
-   - 🔄 View access optimization
-   - 🔄 CDC message generation enhancements
-   - 🔄 Error handling improvements
-   - 🔄 Testing utilities
-
-3. **CDC Sinks**
-   - 🔄 Sink interface definition
-   - 🔄 Kafka sink implementation
-   - 🔄 PostgreSQL sink implementation
-   - 🔄 File sink for testing
-   - 🔄 Sink factory and configuration
-
-4. **Transform Modules**
-   - 🔄 Example transform modules
-   - 🔄 Transform module testing utilities
-   - 🔄 Documentation and tutorials
-   - 🔄 Language support (Rust, AssemblyScript)
+- [x] Basic project structure and architecture
+- [x] Error handling with anyhow and thiserror
+- [x] CDC message format definition
+- [x] Serialization utilities
+- [x] Block cache implementation
+- [x] Metashrew client interface
+- [x] CDC sink interface
+- [x] Console and file sink implementations
+- [x] WASM runtime implementation
+- [x] Host functions for transform modules
+- [x] Transform trait definition
+- [x] Automatic rollback generation for reorgs
+- [x] Example transform module
 
 ## What's Left to Build
 
-1. **Core Service Completion**
-   - ❌ Complete block cache with all features
-   - ❌ Full reorg handling with all edge cases
-   - ❌ CDC message buffering and batching
-   - ❌ Advanced configuration options
-   - ❌ Metrics and monitoring
-   - ❌ Health checks and diagnostics
-
-2. **Runtime Library Enhancements**
-   - ❌ Advanced state management features
-   - ❌ Optimized view access with caching
-   - ❌ Enhanced CDC message generation
-   - ❌ Comprehensive error handling
-   - ❌ Advanced testing utilities
-   - ❌ Performance optimizations
-
-3. **CDC Sink Completion**
-   - ❌ Complete Kafka sink with all features
-   - ❌ Full PostgreSQL sink implementation
-   - ❌ Enhanced file sink with more options
-   - ❌ Console sink for debugging
-   - ❌ Custom sink development documentation
-   - ❌ Sink composition and chaining
-
-4. **Advanced Features**
-   - ❌ Transform module hot reloading
-   - ❌ Advanced state management
-   - ❌ Transform module registry
-   - ❌ Plugin system for extensions
-   - ❌ Web interface for monitoring
-   - ❌ Distributed deployment support
-
-5. **Documentation and Examples**
-   - ❌ Comprehensive documentation
-   - ❌ Tutorials and guides
-   - ❌ Example applications
-   - ❌ Video tutorials
-   - ❌ Documentation website
-   - ❌ API reference
+- [ ] Complete metashrew client implementation
+- [ ] Additional CDC sink implementations (Kafka, PostgreSQL)
+- [ ] Comprehensive testing of the WASM runtime
+- [ ] Performance optimization of the WASM runtime
+- [ ] Configuration system for transform modules
+- [ ] CLI interface for debshrew
+- [ ] Monitoring and metrics
+- [ ] Documentation and examples
 
 ## Current Status
 
-The debshrew project is currently in the **early development phase**. The core architecture and key components are defined, and initial implementations of critical systems are underway. The project has established the foundational structure and is now focused on building out the core functionality.
+We have made significant progress on the debshrew project. The core architecture is in place, and we have implemented the key components:
 
-### Development Progress by Component
+1. **WASM Runtime**: We have implemented a WASM runtime based on the subrail approach, which can execute transform modules and handle CDC message generation and rollback.
 
-| Component | Progress | Status |
-|-----------|----------|--------|
-| Project Structure | 80% | Near complete |
-| WASM Runtime | 40% | Active development |
-| Metashrew Integration | 30% | Active development |
-| CDC Message Generation | 50% | Active development |
-| Block Synchronization | 20% | Early development |
-| Block Cache | 10% | Early development |
-| Reorg Handling | 5% | Early development |
-| CDC Sinks | 15% | Early development |
-| Transform Modules | 10% | Early development |
-| Documentation | 30% | Ongoing |
+2. **Transform Module Interface**: We have defined the `DebTransform` trait and implemented the necessary host functions for transform modules to interact with the host environment.
 
-### Milestone Progress
+3. **CDC Message Handling**: We have implemented CDC message generation and automatic rollback generation for chain reorganizations.
 
-| Milestone | Target | Status |
-|-----------|--------|--------|
-| Core Architecture Definition | Q1 2025 | ✅ Completed |
-| Basic WASM Runtime | Q1 2025 | 🔄 In progress (40%) |
-| Metashrew Integration | Q1 2025 | 🔄 In progress (30%) |
-| CDC Message Generation | Q1 2025 | 🔄 In progress (50%) |
-| Block Synchronization | Q2 2025 | 🔄 Early stages (20%) |
-| Block Cache Implementation | Q2 2025 | 🔄 Early stages (10%) |
-| Reorg Handling | Q2 2025 | 🔄 Early stages (5%) |
-| CDC Sink Implementations | Q2 2025 | 🔄 Early stages (15%) |
-| Example Transform Modules | Q2 2025 | 🔄 Early stages (10%) |
-| Initial Release | Q3 2025 | ❌ Not started |
+4. **Block Synchronization**: We have implemented a block synchronizer that can process blocks, handle reorgs, and send CDC messages to sinks.
+
+5. **CDC Sinks**: We have implemented the CDC sink interface and provided console and file sink implementations.
+
+The next steps are to complete the metashrew client implementation, add additional CDC sink implementations, and perform comprehensive testing of the WASM runtime. We also need to implement a configuration system for transform modules and a CLI interface for debshrew.
 
 ## Known Issues
 
-1. **WASM Runtime**
-   - Issue: Memory management for large state is not fully implemented
-   - Impact: May cause performance issues or crashes with large state
-   - Status: Being addressed in ongoing development
+1. **Deep Reorgs**: The current implementation can handle reorgs up to the block cache size (default: 6 blocks). Deeper reorgs will require special handling.
 
-2. **Metashrew Integration**
-   - Issue: Error handling for metashrew connection failures is incomplete
-   - Impact: May cause service instability when metashrew is unavailable
-   - Status: Planned for improvement in the next development cycle
+2. **WASM Performance**: The WASM runtime may have performance issues with complex transform modules. We need to optimize the runtime for better performance.
 
-3. **Block Synchronization**
-   - Issue: Initial implementation doesn't handle all edge cases
-   - Impact: May miss blocks or process them out of order in certain scenarios
-   - Status: Being addressed in ongoing development
+3. **CDC Sink Reliability**: Different sinks have different reliability characteristics. We need to implement retry mechanisms and circuit breakers for failing sinks.
 
-4. **CDC Message Generation**
-   - Issue: Performance optimization for large message volumes is pending
-   - Impact: May cause performance bottlenecks with high-volume metaprotocols
-   - Status: Planned for optimization in the next development cycle
+4. **Metashrew Dependency**: Debshrew depends on metashrew for data. We need to implement connection pooling and retry mechanisms for metashrew.
 
-5. **Reorg Handling**
-   - Issue: Deep reorgs beyond the block cache size are not handled
-   - Impact: May cause inconsistent state after deep reorgs
-   - Status: Design for handling deep reorgs is in progress
+## Next Milestones
 
-## Next Priorities
+1. **Complete Metashrew Client**: Implement a complete metashrew client that can handle all the necessary view calls.
 
-1. **Complete Block Synchronization**
-   - Implement robust block polling mechanism
-   - Handle edge cases like missed blocks
-   - Optimize for performance
-   - Add comprehensive logging and metrics
-   - Implement error recovery
+2. **Additional CDC Sinks**: Implement Kafka and PostgreSQL sink implementations.
 
-2. **Implement Block Cache**
-   - Complete the block cache implementation
-   - Add state snapshot management
-   - Implement cache eviction policies
-   - Optimize memory usage
-   - Add persistence options
+3. **Comprehensive Testing**: Develop a comprehensive test suite for the WASM runtime and transform modules.
 
-3. **Enhance Reorg Handling**
-   - Implement full reorg detection
-   - Add state rollback mechanism
-   - Generate inverse CDC messages
-   - Handle deep reorgs
-   - Add comprehensive testing
+4. **Performance Optimization**: Optimize the WASM runtime for better performance.
 
-4. **Develop CDC Sinks**
-   - Complete the sink interface
-   - Implement Kafka sink
-   - Develop PostgreSQL sink
-   - Create file sink
-   - Add sink configuration options
+5. **Configuration System**: Implement a configuration system for transform modules.
 
-5. **Create Example Transform Modules**
-   - Develop example modules for common metaprotocols
-   - Create comprehensive documentation
-   - Add testing utilities
-   - Implement best practices
-   - Showcase different use cases
+6. **CLI Interface**: Implement a CLI interface for debshrew.
 
-## Recent Achievements
-
-1. **Project Structure**
-   - Established the initial project structure with Cargo workspace
-   - Set up the core crates: debshrew, debshrew-runtime, debshrew-support
-   - Configured the build system and dependencies
-   - Created the documentation structure
-
-2. **WASM Runtime**
-   - Implemented basic WASM module loading and execution
-   - Created the host function definitions
-   - Implemented memory management for WASM modules
-   - Defined the initial transform trait
-
-3. **Metashrew Integration**
-   - Implemented the basic metashrew client
-   - Created the view access interface
-   - Developed the block retrieval mechanism
-   - Implemented initial reorg detection
-
-4. **CDC Message Generation**
-   - Defined the CDC message structure
-   - Implemented basic message generation utilities
-   - Created serialization and deserialization functions
-   - Implemented message validation
+7. **Documentation and Examples**: Create comprehensive documentation and examples for debshrew.
