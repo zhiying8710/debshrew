@@ -1,0 +1,105 @@
+site_name: Debshrew Documentation
+site_description: Documentation for the Debshrew framework
+site_author: Debshrew Team
+repo_url: https://github.com/example/debshrew
+repo_name: example/debshrew
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+    accent: indigo
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - footnotes
+  - meta
+  - pymdownx.arithmatex
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.critic
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences
+  - pymdownx.tabbed
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: installation.md
+    - Quick Start: quickstart.md
+    - Configuration: configuration.md
+  - Core Concepts:
+    - Architecture: architecture.md
+    - CDC Concepts: cdc-concepts.md
+    - Metashrew Integration: metashrew-integration.md
+    - WASM Transform Guide: wasm-transform-guide.md
+  - API Reference:
+    - Debshrew: api/debshrew.md
+    - Debshrew Runtime: api/debshrew-runtime.md
+    - Debshrew Support: api/debshrew-support.md
+  - Examples:
+    - Simple Transform: examples/simple-transform.md
+    - Ordinals Transform: examples/ordinals-transform.md
+    - Custom Sink: examples/custom-sink.md
+  - Contributing:
+    - Development Guide: development.md
+    - Code Style Guide: code-style.md
+    - Testing Guide: testing.md
+
+plugins:
+  - search
+  - minify:
+      minify_html: true
+      minify_js: true
+      minify_css: true
+      htmlmin_opts:
+        remove_comments: true
+  - git-revision-date-localized:
+      type: date
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          selection:
+            docstring_style: google
+          rendering:
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: true
+            show_category_heading: true
+            show_if_no_docstring: true
+            heading_level: 2
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/example/debshrew
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/example
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/example
+
+copyright: Copyright &copy; 2025 Debshrew Team

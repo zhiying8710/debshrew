@@ -1,0 +1,17 @@
+[package]
+name = "simple-transform"
+version = "0.1.0"
+edition = "2021"
+authors = ["Debshrew Team"]
+description = "A simple transform module for debshrew"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+debshrew-runtime = { path = "../../debshrew-runtime" }
+debshrew-support = { path = "../../debshrew-support" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+hex = "0.4"

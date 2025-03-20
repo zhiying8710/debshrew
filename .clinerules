@@ -1,0 +1,236 @@
+# Debshrew Project Intelligence
+
+This file captures important patterns, preferences, and project intelligence for the debshrew project. It serves as a learning journal to help maintain consistency and efficiency in development.
+
+## Naming Conventions
+
+1. **Crate Names**
+   - Main crate: `debshrew`
+   - Runtime library: `debshrew-runtime`
+   - Support libraries: `debshrew-support`, `debshrew-{specific-feature}`
+   - Example transforms: `debshrew-transform-{protocol-name}`
+
+2. **File Names**
+   - Source files: snake_case.rs
+   - Test files: {module_name}_test.rs
+   - Example files: {feature_name}_example.rs
+   - Configuration files: {feature_name}.config.json
+
+3. **Code Identifiers**
+   - Structs/Enums: PascalCase
+   - Traits: PascalCase
+   - Functions/Methods: snake_case
+   - Constants: SCREAMING_SNAKE_CASE
+   - Variables: snake_case
+   - Type parameters: Single uppercase letter or PascalCase with descriptive name
+
+## Code Organization
+
+1. **Crate Structure**
+   - `debshrew`: Main service implementation
+   - `debshrew-runtime`: WASM host interface and transform traits
+   - `debshrew-support`: Common utilities and shared code
+   - Example transforms in separate crates
+
+2. **Module Organization**
+   - Core functionality in lib.rs
+   - Major subsystems in separate modules
+   - Public API in dedicated modules
+   - Internal utilities in private modules
+
+3. **Test Organization**
+   - Unit tests in the same file as the code they test
+   - Integration tests in a separate tests directory
+   - Example code in an examples directory
+   - Benchmarks in a benches directory
+
+## Development Workflow
+
+1. **Feature Development**
+   - Create an issue describing the feature
+   - Discuss the design in the issue
+   - Implement the feature in a branch
+   - Add tests for the feature
+   - Update documentation
+   - Submit a pull request
+
+2. **Bug Fixes**
+   - Create an issue describing the bug
+   - Reproduce the bug with a test
+   - Fix the bug
+   - Ensure the test passes
+   - Update documentation if necessary
+   - Submit a pull request
+
+3. **Documentation**
+   - Update the Memory Bank when making significant changes
+   - Add inline documentation for public API
+   - Create examples for new features
+   - Update README.md with new features
+
+4. **Testing**
+   - Write unit tests for all public API
+   - Create integration tests for major features
+   - Use property-based testing where appropriate
+   - Benchmark performance-critical code
+
+## Critical Implementation Paths
+
+1. **Block Synchronization**
+   - The `BlockSynchronizer` is responsible for keeping debshrew in sync with metashrew
+   - It polls metashrew for new blocks and detects reorgs
+   - The synchronization loop is the heart of the system and must be robust
+
+2. **WASM Execution**
+   - The `WasmRuntime` manages WASM module execution
+   - It provides the host functions for transform modules
+   - Memory management is critical for performance and stability
+
+3. **Reorg Handling**
+   - The `BlockCache` maintains a cache of recent blocks and state snapshots
+   - It handles rolling back state and generating inverse CDC messages during reorgs
+   - Proper reorg handling is essential for data consistency
+
+4. **CDC Sink Management**
+   - The `SinkManager` handles sending CDC messages to configured sinks
+   - It manages retries, batching, and error handling
+   - Reliable delivery to sinks is critical for data integrity
+
+## Known Challenges
+
+1. **Deep Reorgs**
+   - Reorgs deeper than the block cache size require special handling
+   - Options include:
+     - Larger block cache (memory intensive)
+     - Persistent state snapshots (I/O intensive)
+     - Full reprocessing from genesis (time intensive)
+   - Current approach is to use a 6-block cache and warn on deeper reorgs
+
+2. **WASM Performance**
+   - Complex transform modules may have performance issues
+   - Optimization strategies include:
+     - Efficient state management
+     - Batched view access
+     - Incremental processing
+     - Memory optimization
+   - Profile transform modules to identify bottlenecks
+
+3. **Sink Reliability**
+   - Different sinks have different reliability characteristics
+   - Strategies for reliability include:
+     - Retry mechanisms with backoff
+     - Circuit breakers for failing sinks
+     - Local buffering of messages
+     - Monitoring and alerting
+   - Balance reliability with performance
+
+4. **Metashrew Dependency**
+   - Debshrew depends on metashrew for data
+   - Strategies for handling metashrew issues:
+     - Connection pooling and retry
+     - Caching frequently accessed data
+     - Graceful degradation during outages
+     - Monitoring metashrew health
+   - Consider fallback options for critical deployments
+
+## Project Preferences
+
+1. **Error Handling**
+   - Use `anyhow` for error propagation in application code
+   - Use `thiserror` for defining error types in library code
+   - Provide context for all errors
+   - Log errors at appropriate levels
+   - Return detailed error messages to aid debugging
+
+2. **Configuration**
+   - Use structured configuration with validation
+   - Support both file-based and environment variable configuration
+   - Provide sensible defaults for all settings
+   - Document all configuration options
+   - Validate configuration at startup
+
+3. **Logging**
+   - Use the `log` crate for logging
+   - Configure log levels appropriately
+   - Include context in log messages
+   - Log important events at INFO level
+   - Log debugging information at DEBUG level
+   - Log errors and warnings at appropriate levels
+
+4. **Documentation**
+   - Document all public API
+   - Provide examples for common use cases
+   - Keep the Memory Bank up to date
+   - Use diagrams to explain complex concepts
+   - Document design decisions and trade-offs
+
+5. **Testing**
+   - Aim for high test coverage of critical paths
+   - Use integration tests for end-to-end validation
+   - Create property-based tests for complex logic
+   - Benchmark performance-critical code
+   - Use CI for automated testing
+
+## Evolution of Project Decisions
+
+1. **Block Cache Size**
+   - Initially fixed at 6 blocks
+   - Considering making it configurable
+   - Evaluating memory usage implications
+   - Exploring persistent cache options
+
+2. **CDC Message Format**
+   - Started with basic Debezium-compatible format
+   - Considering additional metadata for Bitcoin-specific information
+   - Evaluating performance of different serialization formats
+   - Exploring schema evolution options
+
+3. **Transform Module Interface**
+   - Initially simple with process_block and rollback methods
+   - Considering additional lifecycle methods
+   - Evaluating advanced state management features
+   - Exploring module composition options
+
+4. **Sink Implementation**
+   - Started with basic sink interface
+   - Implementing Kafka, PostgreSQL, and file sinks
+   - Considering additional sink types
+   - Exploring sink composition and chaining
+
+5. **Metashrew Integration**
+   - Initially direct JSON-RPC client
+   - Considering more decoupled approach
+   - Evaluating performance implications
+   - Exploring caching and batching options
+
+## Tool Usage Patterns
+
+1. **Development Environment**
+   - Use VS Code with Rust Analyzer
+   - Configure rustfmt and clippy
+   - Use cargo-watch for continuous testing
+   - Configure debugging with CodeLLDB
+
+2. **Build and Test**
+   - Use cargo build for development builds
+   - Use cargo test for running tests
+   - Use cargo bench for benchmarking
+   - Use cargo doc for generating documentation
+
+3. **Continuous Integration**
+   - Run tests on all pull requests
+   - Check formatting and linting
+   - Build documentation
+   - Run security audits
+
+4. **Deployment**
+   - Build release binaries with cargo build --release
+   - Package with appropriate dependencies
+   - Configure with environment variables or config files
+   - Monitor with appropriate tools
+
+5. **Documentation**
+   - Update Memory Bank for significant changes
+   - Generate API documentation with cargo doc
+   - Create examples for new features
+   - Update README.md with new information
