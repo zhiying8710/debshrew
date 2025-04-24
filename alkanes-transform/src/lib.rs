@@ -32,9 +32,40 @@ impl DebTransform for MyTransform {
                 })),
             },
         };
-        
         // Push CDC message
         self.push_message(message)?;
+
+        // Serialize the parameters
+        let params = serialize_params(&height)?;
+
+        // Call the view function
+        let result = view("get_block_transactions".to_string(), params)?;
+
+        // Deserialize the result
+        let transactions: Vec<Transaction> = deserialize_result(&result)?;
+        
+        // Push CDC messages for each transaction
+        for transaction in transactions {
+            let message = CdcMessage {
+                header: CdcHeader {
+                    source: "my_transform".to_string(),
+                    timestamp: chrono::Utc::now(),
+                    block_height: height,
+                    block_hash: hex::encode(&hash),
+                    transaction_id: Some(transaction.id),
+                },
+                payload: CdcPayload {
+                    operation: CdcOperation::Create,
+                    table: "transactions".to_string(),
+                    key: transaction.id.to_string(),
+                    before: None,
+                    after: Some(serde_json::to_value(&transaction)?),
+                },
+            };
+            self.push_message(message)?;
+        }
+        
+        
         
         Ok(())
     }
