@@ -1,5 +1,5 @@
 [workspace]
-members = [
+members = [ "alkanes-transform",
     "debshrew",
     "debshrew-runtime",
     "debshrew-support",
